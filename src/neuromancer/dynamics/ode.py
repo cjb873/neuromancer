@@ -157,37 +157,55 @@ class GeneralNetworkedODE(ODESystem):
         return dx   
 
 
+import torch
+from neuromancer.dynamics.ode import ODESystem
+from library import FunctionLibrary
+
 class SINDy(ODESystem):
     """
     Sparse Identification of Nonlinear Dynamics
     Reference: https://www.pnas.org/doi/10.1073/pnas.1517384113
     """
+
+
     def __init__(
         self,
         library,
-        threshold=1e-2
+        threshold=1e-2,
+        n_out=None
     ):
         """
         :param library: (FunctionLibrary) the library of candidate functions
         :param threshold: (float) all functions with coefficients lower than this are omitted
+        :param n_out: (int) number of desired outputs; changing this value can be used for policy sindy
         """
         assert isinstance(library, FunctionLibrary), "Must be valid library"
 
-        super().__init__(library.shape[1], library.shape[1])
+        self.n_out = n_out
+        if n_out is None:
+            self.n_out = library.n_features
+        
+        super().__init__(library.shape[1], self.n_out)
+        
 
         self.library = library
         self.threshold = threshold
-        init_coef = torch.rand(self.library.shape)
+        init_coef = torch.rand((self.library.shape[0], self.n_out))
         self.coef = torch.nn.Parameter(init_coef, requires_grad=True)
         self.float()
 
-    def ode_equations(self, x):
+    def ode_equations(self, x, u=None):
         """
         :param x: (torch.tensor) time series data
+        :param u: (torch.tensor) time series inputs
         """
-        assert x.ndim == 2, "Input must not be empty"
-        assert x.shape[1] == self.library.shape[1], "Must have same number of states as insize"
-        lib_eval = self.library.evaluate(x)
+        lib_eval = None
+        if u is None:
+            lib_eval = self.library.evaluate(x)
+
+        else:
+            lib_eval = self.library.evaluate(x,u)
+
         output = torch.matmul(lib_eval, self.coef)
         return output
 
@@ -200,7 +218,7 @@ class SINDy(ODESystem):
         f_names = f_names.split(", ")
         return_str = ""
 
-        for i in range(self.library.shape[1]):
+        for i in range(self.nx):
             return_str += f"dx{i}/dt = "
             for j in range(len(f_names)):
                 coef = self.coef[j, i]
@@ -211,6 +229,7 @@ class SINDy(ODESystem):
             return_str += "\n"
 
         return return_str
+
 
 
 class TwoTankParam(ODESystem):
