@@ -155,11 +155,7 @@ class GeneralNetworkedODE(ODESystem):
                 if physics.symmetric:
                     dx[:, [receive]] -= contribution
         return dx   
-
-
-import torch
-from neuromancer.dynamics.ode import ODESystem
-from library import FunctionLibrary
+        
 
 class SINDy(ODESystem):
     """
